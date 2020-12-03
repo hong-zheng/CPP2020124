@@ -1,0 +1,1263 @@
+
+#include "help.h"
+#include <set>
+#include <unordered_set>
+#include <string.h>
+#include <assert.h>
+#include <stack>
+#include <errno.h>
+#include <list>
+
+using namespace std;
+// using namespace hong;
+// list模拟实现
+// #pragma once
+
+#ifndef _LIST_H
+#define _LIST_H
+
+namespace hong {
+	template<class T>
+	struct ListNode{
+		// T() :
+		// T是内置类型，T()表示的默认值都是0
+		// T是自定义类型，T()表明调用无参或者全缺省的构造函数
+		// 创建了一个匿名对象
+		// 对应的T类型必须要有全缺省或者无参构造函数
+		// 自动生成或者手写
+		// 注意：此时T对应的类必须要显式提供无参或者全缺省的构造函数，
+		// 否则编译失败
+		ListNode(const T& x = T())
+			:next(nullptr)
+			, prev(nullptr)
+			, data(x)
+		{}
+		ListNode<T>* next;
+		ListNode<T>* prev;
+		T data;
+	};
+
+	// 迭代器构造
+	template<class T>
+	struct ListIterator{
+		typedef ListNode<T> Node;
+		typedef ListIterator<T> Self;
+		// 构造
+		ListIterator(Node* n = nullptr)
+			:node(n)
+		{}
+
+		// 具有指针类似的操作
+		T& operator*()
+		{
+			return node->data;
+		}
+
+		T* operator->()
+		{
+			return &(operator*());
+		}
+
+		// 迭代器要能够移动
+
+		// 前置++
+		Self& operator++(){
+			node = node->next;
+			return *this;
+		}
+
+		// 后置++
+		Self operator++(int){
+			Self tmp(*this);
+			node = node->next;
+			return tmp;
+		}
+
+		// 前置--
+		Self& operator--()
+		{
+			node = node->prev;
+			return *this;
+		}
+		// 后置--
+		Self operator--(int)
+		{
+			Self tmp(*this);
+			node = node->prev;
+			return tmp;
+		}
+
+		// 迭代器要能够比较
+		bool operator!=(const Self& s) const
+		{
+			return node != s.node;
+		}
+		bool operator==(const Self& s) const
+		{
+			return node == s.node;
+		}
+		Node* node;//链表，因此需要给指针
+	};
+
+	template<class T>
+	class list{
+		typedef ListNode<T> Node;
+	public:
+		// 迭代器
+		//		typedef T* iterator; // 不可行
+		//	typedef ListNode<T>* iterator;//不可行
+		typedef ListIterator<T> iterator;
+
+		// 迭代器
+		iterator begin(){
+			iterator ret(head->next);
+			return ret;
+		}
+
+		iterator end(){
+			// 创建一个匿名对象，然后返回
+			return iterator(head);
+		}
+
+
+	public:
+		// 构造
+		list();
+		list(int n, const T& data){
+			CreateHead();
+			for (size_t i = 0; i < n; ++i)
+				push_back(data);
+		}
+
+		// 用迭代器构造
+		template<class iterator>
+		list(iterator first, iterator last){
+			CreateHead();
+			while (first != last)
+			{
+				push_back(*first);
+				+first;
+			}
+		}
+		// 拷贝构造
+		list(const list<T>& L){
+			CreateHead();
+			Node* cur = L.head->next;
+			while (cur != L.head)
+			{
+				push_back(cur->data);
+				cur = cur->next;
+			}
+		}
+
+		list<T>& operator=(const list<T>& L)
+		{
+			if (this != &L)
+			{
+
+			}
+			return *this;
+		}
+		~list()
+		{
+			clear();
+			delete head;
+			head = nullptr;
+		}
+		// 迭代器
+
+		// 容量
+		size_t size() const{
+			size_t count = 0;
+			Node* cur = head->next;
+			// 带有头结点，因此以头结点结束
+			while (cur != head)
+			{
+				count++;
+				cur = cur->next;
+			}
+			return count;
+		}
+		bool empty() const
+		{
+			return head->next == head;
+#if 0
+			if (head->next == head)
+			{
+				return true;
+			}
+			return false;
+#endif
+		}
+		void resize(size_t newsize, const T& data = T()){
+			size_t oldsize = size();
+			if (newsize <= oldsize)
+			{
+				for (size_t i = newsize; i < oldsize; ++i)
+				{
+					pop_back();
+				}
+			}
+			else
+			{
+				for (size_t i = oldsize; i < newsize; ++i)
+				{
+					push_back(data);
+				}
+			}
+		}
+		// 元素访问
+		T& front(){
+			return head->next->data;
+		}
+		const T& front() const {
+		}
+		T& back(){
+			return head->prev->data;
+		}
+		const T& back() const{
+			return head->prev->data;
+		}
+		// 修改
+		void push_back(const T& data){
+			// 尾插
+			insert(end(), data);
+		}
+		void pop_back(){
+			erase(--end());
+		}
+		void push_front(const T& data)
+		{
+			// 头插
+			insert(begin(), data);
+		}
+		void pop_front(){
+			erase(begin());
+		}
+
+		// 带头结点的插入与删除不用考略过多的情况
+		iterator insert(iterator pos, const T& data)
+		{
+			Node* newnode = new Node(data);
+			// 当前位置的迭代器
+			Node* posnode = pos.node;
+
+			newnode->prev->next = newnode;
+			newnode->prev = posnode->prev;
+			newnode->next = posnode;
+			posnode->prev = newnode;
+
+			return iterator(newnode);
+		}
+		iterator erase(iterator pos)
+		{
+			if (pos == end()) // 此时不能删除
+			{
+				return end();
+			}
+			Node* delnode = pos.node;
+			Node* retnode = delnode->next;
+
+			delnode->prev->next = retnode;
+			retnode->prev = delnode->prev;
+
+			delete delnode;
+			return iterator(retnode);
+		}
+		iterator erase(iterator first, iterator last)
+		{
+			while (first != last)
+			{
+				first = erase(first);
+			}
+		}
+
+		void clear(){
+			erase(begin(), end());
+		}
+
+		void swap()
+		{
+		}
+		// 特殊操作
+		void CreateHead()
+		{
+			head = new Node;
+			head->next = head;
+			head->prev = head;
+		}
+	private:
+		Node* head;
+	};
+}
+
+#endif // _LIST_H
+
+void test10(){
+	int arr[] = { 1, 2, 3, 4, 5, 6, 7 };
+	hong::list<int> L1(arr, sizeof(arr) / sizeof(arr[0]));
+
+	cout << "hong" << endl;
+}
+
+
+
+int maiddn(){
+
+	cout << "hong zheng" << endl;
+	system("pause");
+	return 0;
+}
+
+
+
+
+
+
+
+void test1031(){
+	// 迭代器失效重新赋值
+}
+
+
+void test100(){
+	list<int> L{ 1, 2, 3, 5, 61, 12 };
+	auto pos = find(L.begin(), L.end(), 1);
+	L.insert(pos, 100);
+	for (auto& e : L)
+	{
+		cout << e << " ";
+	}
+	cout << endl;
+	pos = find(L.begin(), L.end(), 11);
+	L.insert(pos, 123);
+	for (auto& e : L)
+	{
+		cout << e << " ";
+	}
+	cout << endl;
+	L.erase(L.begin());
+	L.erase(L.begin(), L.end());
+
+	for (const auto& e : L)
+	{
+		cout << e << " ";
+	}
+	cout << endl;
+}
+void test1024(){
+	list<int> L1;
+	list<int> L2(10, 5);
+
+	vector<int> v{ 1, 2, 3, 4, 5, };
+	list<int> L3(v.begin(), v.end());
+	list<int> L4(L3);
+
+	list<int> L5{ 1, 2, 3, 4 };
+
+	// 采用迭代器进行
+	auto it = L2.begin();
+	while (it != L2.end())
+	{
+		cout << *it << " ";
+		++it; // 对于对象而言，前置++效率更低
+	}
+	cout << endl;
+	// e : 是其元素，map是键值对
+	// e是L4中每个结点值的别名
+	for (auto& e : L4)
+	{
+
+	}
+	// e是L4中每个结点值域的一份拷贝
+	for (auto e : L4)
+	{
+
+	}
+}
+
+int add(int num1, int num2)
+{
+	while (num2)
+	{
+		int tmp = num1^num2;
+		num2 = (num1&num2) << 1;
+		num1 = tmp;
+	}
+	return num1;
+}
+
+void test11023(){
+	int num1;
+	int num2;
+	while (cin >> num1 >> num2)
+	{
+		cout << add(num1, num2) << endl;
+	}
+}
+
+void test1023(){
+	vector<int> arr{ 1, 2, 12, 2, 34, 5, 90, 1 };
+	auto it = arr.begin();
+	vector<int> arr1{ 32, 12, 0, 90 };
+	arr1.assign(arr.begin(), arr.end());
+	for (int i = 0; i < arr1.size(); ++i)
+		cout << arr1[i] << " ";
+	cout << endl;
+	// it = arr.erase(1);
+
+#if 0
+	arr.reserve(100);
+	// 迭代器失效情况
+	// 因此需要重新获取
+	it = arr.begin();
+	while (it != arr.end())
+	{
+		cout << *it << " ";
+		++it;
+	}
+	cout << endl;
+#endif
+	// 
+
+}
+// 迭代器：帮助算法遍历元素
+void test1022(){
+	// 迭代器失效情况
+	vector<int> v{ 1, 2, 3, 41, 12, 4, 42 };
+	auto it = v.begin();
+	while (it != v.end())
+	{
+		cout << *it << " ";
+		++it;
+	}
+	cout << endl;
+}
+
+// 所有的 strxxx 的字符串函数都是处理字符串.
+class String{
+public:
+
+	// 字符串构造函数
+	String(const char* str = "")
+	{
+		// 构造String类对象时，如果传递nullptr指针，认为程序非法，此处需要断言
+		if (nullptr == str)
+		{
+			assert(false);
+			return;
+		}
+		// str 不为空，开辟足够的空间
+		// +1 ： 存储 \0
+		_str = new char[strlen(str) + 1];
+		// 将str内容拷贝到_str中
+		strcpy(_str, str);
+	}
+
+	// 拷贝构造函数
+	String(const String& s)
+		:_str(new char[strlen(s._str) + 1])
+	{
+		strcpy(_str, s._str);
+	}
+
+	// 赋值重载函数
+	String& operator=(const String& s)
+	{
+		// 判断是否为自我赋值
+		if (this != &s)
+		{
+			char* stmp = new char[strlen(s._str) + 1];
+			strcpy(stmp, s._str);
+			delete[] _str;
+			_str = stmp;
+		}
+		// 如果是自我赋值，就直接返回引用
+		return *this;
+	}
+
+	// 析构函数
+	~String()
+	{
+		if (_str)
+		{
+			delete[] _str;
+			_str = nullptr;
+		}
+	}
+
+private:
+	char* _str;
+};
+
+void test1021(){
+	int A;
+	int B;
+	while (cin >> A >> B)
+	{
+		int tmp = A;
+		while (B)
+		{
+			int t = A;
+			A ^= B;
+			B &= t;
+			B << 1;
+		}
+		cout << A << endl;
+	}
+}
+int test110(){
+	int n, m;
+	while (1)
+	{
+		cin >> n >> m;
+		vector<vector<int>> grid(n + 1, vector<int>(m + 1, 1));
+		for (int i = 1; i<n + 1; ++i)
+		{
+			for (int j = 1; j<m + 1; ++j)
+			{
+				grid[i][j] = grid[i][j - 1] + grid[i - 1][j];
+			}
+		}
+		cout << grid[n][m] << endl;
+	}
+	return 0;
+}
+// 比较两个数组是否相同
+bool isEq(const vector<string>& v1, const vector<string>& v2)
+{
+	for (size_t i = 0; i<v1.size(); ++i)
+	{
+		// 全部都相等，则全为0，则不会进入if语句
+		// 遍历完成之后，则直接 return true ; 表示两个vector相同
+		if (strcmp(v1[i].c_str(), v2[i].c_str()))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+int test10q(){
+	int num;
+	cin >> num;
+	vector<string> strV;
+	for (int i = 0; i<num; ++i)
+	{
+		string tmp;
+		getline(cin, tmp);
+		strV.push_back(tmp);
+	}
+	// 构造lex
+	vector<string> strLex(strV.begin(), strV.end());
+	sort(strLex.begin(), strLex.end(), [](const string& a, const string& b)
+	{
+		// a < b : 升序
+		int is = strcmp(a.c_str(), b.c_str());
+		if (is >= 0)
+		{
+			return false;
+		}
+		else
+		{
+			return true;
+		}
+	});
+	// 构造len
+	vector<string> strLen(strV.begin(), strV.end());
+	sort(strLen.begin(), strLen.end(), [](const string& a, const string& b)
+	{
+		return a.size() < b.size();
+	});
+	int e1 = isEq(strV, strLex);
+	int e2 = isEq(strV, strLen);
+	if (e1 && e2)
+	{
+		cout << "both" << endl;
+	}
+	else if (e1)
+	{
+		cout << "lexicographically" << endl;
+	}
+	else if (e2)
+	{
+		cout << "lengths" << endl;
+	}
+	else{
+		cout << "none" << endl;
+	}
+	return 0;
+}
+
+void test10122(){
+	vector<int> arr{ 1, 2, 1, 34, 3, 12, 0, 90, 55, 0 };
+	sort(arr.begin(), arr.end(), [](const int& a, const int& b)
+	{
+		return a > b;
+	});
+	for (int i = 0; i < arr.size(); ++i)
+		cout << arr[i] << " ";
+	cout << endl;
+}
+int test10123(){
+	stack<int> st;
+
+	int num = 0;
+	cin >> num;
+	int first = 0;
+	int second = 1;
+	while (1)
+	{
+		first = first + second;
+		second = first + second;
+		// 13 21
+		// num = 15
+		if (num <= second)
+		{
+			break;
+		}
+	}
+	first = num - first;
+	second = second - num;
+	if (first>second && second >= 0)
+	{
+		cout << second << endl;
+	}
+	else
+	{
+		cout << first << endl;
+	}
+	return 0;
+}
+// 以str开头的库函数，操作对象是：字符串，需要考虑 \0
+// 但是还有其他类型的数组：
+// 整形数组，浮点型数组，结构体数组--没有\0
+// str开头的函数处理的参数都是 char* 与字符串相关
+// 对于其他类型的拷贝是有局限性的
+// 因此给出了：memcpy,memmove,memcmp,memset，与内存相关的函数
+// void* ： 通用类型的指针，无类型的指针
+
+// char* strerror (int errnum) ; 根据错误码返回错误信息
+void test1012(){
+	// errno 是一个全局的错误码变量
+	// 当C语言的库函数在执行过程中，发生了错误，就会把对应的错误码赋值到 errno 中
+	char* str = strerror(errno);
+	// 错误码  错误信息
+	// 0 - No error
+	// 1 - Operatoin not permitted
+	// 2 - No such file or direcctory
+	printf("%s\n", str);
+
+	FILE* pf = fopen("test.txt", "r");
+	if (pf == NULL)
+	{
+		// 当打开失败的时候，给出具体原因
+		// No such file or directory
+		printf("%s\n", strerror(errno));
+	}
+	else
+	{
+		printf("open file sucess\n");
+	}
+	puts("hongzheng");
+	char buf[1024] = { 0 };
+	gets(buf);
+	puts(buf);
+}
+// strtok 模拟
+// char* strtok(char* str,const char* sep);
+
+
+// 还有一个算法：KMP-->字符串匹配算法
+// 其效率更高
+
+void test1011(){
+	char* ip = "192.168.73.134";
+	char buf[1024] = { 0 };
+	strcpy(buf, ip);
+	char* ret = NULL;
+	char* sep = ".";
+	for (ret = strtok(buf, sep); ret != NULL; ret = strtok(NULL, sep))
+	{
+		printf("%s\n", ret);
+	}
+}
+
+void test1010(){
+	char* ip = "192.168.31.121"; // 点分十进制
+	// 分割，将每一段切割出来
+	// zhenghong@qq.com
+	// char* strtok(char* str,const char* sep) 
+	// sep : 分隔符,找分隔符，返回当前段的首地址，修改分隔符为 '\0'
+	// 下一次使用的时候：需传入 sep 的下一个位置作为指针
+	// 一般作为 strtok 的参数字符串，都是临时拷贝数据且可以改变的
+	char* sep = ".";
+	//	const char* p = sep;
+	// strtok(ip, sep);
+
+	char buf[1024] = { 0 };
+	strcpy(buf, ip);
+
+	// 切割buf中的字符串
+	// "192\0168.31.121"
+	//	char* ret = strtok(buf, sep); // strtok 自动保存'.'的位置
+	//printf("%s\n", ret);
+
+	char* ret = NULL;
+	// 初始化
+	// 判断条件
+	// 做出修改调整
+	for (ret = strtok(buf, sep); ret != NULL;
+		ret = strtok(NULL, sep))
+	{
+		printf("%s\n", ret);
+	}
+}
+
+
+// strstr ：寻找子字符串,查找字符串
+char* my_strstr(char* str, char* substr)
+{
+	// 首先得保证str与substr有效
+	assert(str != NULL);
+	assert(substr != NULL);
+
+	// substr 为空字符串
+	if (*substr == '\0')
+	{
+		// 假设返回 NULL
+		return NULL;
+	}
+
+	char* s1 = str;
+	char* s2 = substr;
+	char* cur = s1;
+
+	while (*cur)
+	{
+		s1 = cur;
+		s2 = substr;
+		while ((*s1 != '\0') && (*s2 != '\0') && (*s1 == *s2))
+		{
+			s1++;
+			s2++;
+		}
+		if (*s2 == '\0')
+		{
+			return cur;
+		}
+		// 此时 substr 结束，
+		// 如果 str 结束
+		// 说明 len(str) < len(substr)
+		if (*str == '\0')
+		{
+			return NULL;
+		}
+		++cur;
+	}
+	// 所有的起点开始都没有，因此没有找到 return NULL
+	return NULL;
+}
+
+void test109(){
+	//	char* strstr(const char* str, const char* substrchar);
+	// NULL : 空指针
+	// NUL/Null : \0
+	char* p = "abcdefabcdef";
+	char* p1 = "def";
+
+	// strstr 返回的是p1在p中第一次出现的位置
+	char* sub = strstr(p, p1);
+	if (sub != NULL)
+	{
+		cout << "找到了" << endl;
+		printf("%s\n", sub);
+	}
+	else
+	{
+		cout << "没有找到" << endl;
+	}
+}
+// 对于 strncmp(str1,str2,n) : 只比较前n个字符
+int my_strncmp(const char* str1, const char* str2, size_t count)
+{
+	return 0;
+}
+
+//
+void test108(){
+	// 常量字符串最好加上 const 
+	const char* p1 = "zheng";
+	const char* p2 = "zhe hong ng";
+	// int ret = strcmp(p1, p2);
+	int ret = strncmp(p1, p2, 3);
+	printf("%d\n", ret);
+}
+
+//长度受限制的字符串函数：相对于不受限制的字符串函数更加安全
+
+// 模拟实现 strncat
+// 不会增加追加 \0
+// 如果有字符不足够追加，不会补充 \0
+char* my_strncat(char* front, const char* back, size_t count)
+{
+	char* start = front;
+	while (*front++);
+	front--;
+	while (count--)
+		if (!(*front++ = *back++))
+			return start;
+	*front = '\0';
+	return start;
+}
+
+
+// 模拟实现 strncpy
+// char* strncpy(char* dest,const char* src,size_t num) ;
+// 拷贝 num 个字符从源字符串到目标空间
+// 如果源字符串的长度<num,则拷贝完源字符串之后，在目标字符串后边追加0，直到num个
+// 补 \0
+char* my_strncpy(char* dest, const char* src, size_t count)
+{
+	char* start = dest;
+	while (count && (*dest++ = *src++)) //copy string
+		--count;
+	if (count)
+		while (--count)
+		{
+		*dest++ = '\0';
+		}
+	return start;
+}
+
+void test107(){
+	char str1[20] = "abcdxxxxxxx";
+	char* p = "123";
+	my_strncpy(str1, p, 5);
+
+	while (1);
+}
+// 长度不受限制的字符串函数：不安全
+// 模拟实现 strcmp
+// 比较两个字符串大小
+// 因为两个字符串都不修改：所以加上 const
+int my_strcmp(const char* str1, const char* str2)
+{
+	assert(str1&&str2);
+	// 比较
+	while (*str1 == *str2)
+	{
+		// 两个字符串相等肯定可以走到内循环，此处为 '\0'，就 return 0，表示return 0
+		if (*str1 == '\0')
+		{
+			return 0;// 相等
+		}
+		str1++;
+		str2++;
+	}
+	// 此时 *str1 != *str2
+	if (*str1 > *str2)
+	{
+		return 1; // 大于
+	}
+	else
+	{
+		return -1; // 小于
+	}
+	return 0;
+}
+
+int my_strcmp2(const char* str1, const char* str2)
+{
+	assert(str1 && str2);
+	while (*str1 == *str2)
+	{
+		if (*str1 == '\0')
+			return 0;
+		str1++;
+		str2++;
+	}
+	return *str1 - *str2;
+}
+void test106(){
+	// C语言规定
+	// 编译器
+	// > 0
+	// ==  0
+	// < 0
+	char* p1 = "abc";
+	char* p2 = "abc";
+
+	int ret = strcmp(p1, p2);
+	printf("%d\n", ret);
+}
+
+// 模拟实现 strcat
+// 源字符串中必须包括 \0
+// 源字符串中的 \0 拷贝到 目的字符串
+// 目的字符串中是一个可以修改的空间
+
+char* my_strcat(char*  dest, const char* src)
+{
+	assert(dest != NULL && src != NULL);
+	// assert(dest && src) ;
+	// 保存首地址
+	char* ret = dest;
+	// 1.找到目的字符串的 '\0'
+	while (*dest++ != '\0');
+	// 2.追加
+	while (*dest++ = *src++);
+	return ret;
+}
+
+void test105(){
+
+	// 此处的追加会崩溃：原因是arr1的空间不够，因此就使其崩溃
+#if 0
+	char arr1[] = "hello";
+	char arr2[] = "world";
+	strcat(arr1, arr2);
+#endif
+	// 追加的时候，包括arr2中的 '\0' 也追加到 arr1 中了.
+	char arr1[30] = "hello";
+	char arr2[] = "world";
+	strcat(arr1, arr2);
+
+	printf("%s\n", arr1);
+}
+
+
+// 源头的数据并不会发生 change
+// 用的时候注意事项：源字符串中一定要保证末尾为 '\0'
+// 目标空间必须足够大，足以存放源串
+// 拷贝到数组中可以，char*指向常量字符串时不可以被拷贝.
+//				dest必须指向一个足以存放src的字符数组
+char* my_strcpy(char* dest, const char * src)
+{
+	assert(dest != NULL);
+	assert(src != NULL);
+	char* begin = dest;
+	// 拷贝 src 指向的字符串到 dest 指向的空间，包含'\0'
+	while (*dest++ = *src++);
+	// 返回目的空间的起始地址
+	return begin;
+}
+
+// 模拟实现 strcpy
+void test102(){
+	//while (printf("%s\n", "zhenghong"));
+	char arr1[] = "abcdefghijklmn";
+	char arr2[] = "hong";
+
+	// 拷贝的时候肯定将 arr2 中的 '\0' 拷贝到arr1中了
+	my_strcpy(arr1, arr2);
+
+	printf("%s\n", arr1);
+}
+
+// 模拟实现 strlen
+// 1.计数器的方法
+// 2.递归
+// 3.指针-指针
+
+// size_t ： len只有大于等于0，不可能小于0
+size_t my_strlen(const char* str)
+{
+	int count = 0;
+	// 断言，当前指针不能为空
+	assert(str != NULL);
+
+	while (*str != '\0')
+	{
+		count++;
+		str++;
+	}
+	return count;
+}
+// 递归写法：
+// 实际上就是不创建临时变量的情况下，求出字符串长度
+// 不能创建临时变量计数器
+size_t my_strlen_nor(const char* str)
+{
+	// assert(str != NULL);
+	if (*str != '\0')
+	{
+		str++;
+		return my_strlen_nor(str);
+	}
+	return 0;
+}
+// 指针-指针方式
+size_t my_strlen_point(const char* str)
+{
+	assert(str != NULL);
+	const char* begin = str;
+	while (*str++ != '\0');
+	return str - begin;
+}
+void test101(){
+	// 直接断言：给出断言所在具体位置
+	//int len = my_strlen(NULL);
+	cout << "hong" << endl;
+
+	// 输出 "hehe"
+	// 原因：返回值的类型为 size_t 
+	// size_t == unsigned int
+	// 小无符号-大无符号 貌似为负数
+	// 实则为正数
+	if (strlen("zheng") - strlen("zhenghong") > 0)
+	{
+		cout << "hehe" << endl;
+	}
+	else
+	{
+		cout << "haha" << endl;
+	}
+}
+// 能用库函数则用库函数
+// 判断一个字符串是否为另一个字符串的左旋转
+int is_left_move(char* str1, char* str2)
+{
+	// 首先考虑其长度是否满足相等
+	// 两个串的长度不同，则不可能是其子串
+	int len1 = strlen(str1);
+	int len2 = strlen(str2);
+	if (len1 != len2)
+	{
+		return 0;
+	}
+	// 1.在 str1字符串中追加一个str1字符串
+	// strcat
+	// 在str1中追加str1
+	//strcat(str1, str1); // strcat 自己给自己追加，会出问题
+	strncat(str1, str1, strlen(str1));
+	// 程序崩溃:原因：无法等到'\0',前缀字符串'\0'被覆盖
+	// abc\0 def\0
+
+	// strncat
+	// 2.判断str2指向的字符串是否是str1指向的字串
+	// strstr - 找字串
+	char* p = strstr(str1, str2);
+	if (p)
+	{
+		return 1;
+	}
+	else
+	{
+		return 0;
+	}
+}
+
+int findNum(int arr[4][4], int key, int row, int col)
+{
+	int x = 0;
+	int y = col - 1;
+
+	while (x < row && y >= 0)
+	{
+		if (arr[x][y] > key)
+		{
+			--y;
+		}
+		else if (arr[x][y] < key)
+		{
+			++x;
+		}
+		else
+		{
+			// 找到
+			return 1;
+		}
+	}
+	// 查找完所有的数据，没找到
+	return 0;
+}
+// 如果要返回多个值：就需要传地址
+// 既把地址传进去+又把内容带回来
+//返回型参数
+// px/py 既是传入参数，又是返回参数
+int fk(int arr[4][4], int key, int* px, int* py)
+{
+	int x = 0;
+	int y = *py - 1;
+
+	while (x <= *px - 1 && y >= 0)
+	{
+		if (arr[x][y] > key)
+		{
+			--y;
+		}
+		else if (arr[x][y] < key)
+		{
+			++x;
+		}
+		else
+		{
+			*px = x;
+			*py = y;
+			return 1;
+		}
+	}
+	*px = -1;
+	*py = -1;
+	// 找不到
+	return 0;
+}
+
+// 杨氏矩阵
+// 有一个数字矩阵，矩阵的每一行从左至右递增，每一列从上至下递增.
+// 时间复杂度：O(n)
+void test1(){
+	const int row = 4;
+	const int col = 4;
+	int arr[row][col] =
+	{
+		{ 1, 2, 3, 4 },
+		{ 2, 3, 4, 5 },
+		{ 3, 4, 5, 6 },
+		{ 4, 5, 6, 7 },
+	};
+
+	// O(n) 实现
+	int key = 7;
+	int ret = findNum(arr, key, row, col);
+	if (ret)
+	{
+		cout << "找到了" << endl;
+		return;
+	}
+	cout << "找不到" << endl;
+	return;
+}
+
+void test2(){
+	//	char arr1[10] = { "1234" };
+	char arr1[] = "1234";
+	char* arr2 = "abcd";
+	//	strcat(arr1, arr2);
+	printf("%s\n", arr1);
+}
+
+
+
+int main(){
+	test10();
+	// test3();
+	//	test1();
+	//test2();
+	system("pause");
+	return 0;
+}
+int main21(){
+	set<int> all;
+	all.insert(1);
+	all.insert(10);
+	all.insert(1);
+
+	unordered_set<int> usi;
+
+	usi.insert(12);
+	usi.insert(12);
+	usi.insert(122);
+	usi.insert(12);
+	usi.insert(12);
+
+	for (auto& e : usi)
+	{
+		cout << e << " ";
+	}
+	cout << endl;
+	system("pause");
+	return 0;
+}
+
+int maindd(){
+	int a; float b, c;
+	scanf("%2d%3f%4f", &a, &b, &c);
+	printf("\na=%d,b=%d,c=%f\n", a, b, c);
+
+	system("pause");
+	return 0;
+}
+
+#include <map>
+map<char, string> mp = {
+		{ '2', "abc" },
+		{ '3', "def" },
+		{ '4', "ghi" },
+		{ '5', "jkl" },
+		{ '6', "mno" },
+		{ '7', "pqrs" },
+		{ '8', "tuv" },
+		{ '9', "wxyz" }
+};
+
+#if 0
+此题的精髓之处1.在于使用了红黑树的map进行映射
+2.当每次遍历一个串中的数组时，idx都是单独加，curStr也是单独加拷贝
+每次进去之后都是对自身对象的重现，并无累计
+#endif
+class Solution {
+public:
+	void dfs(string& digits, int idx, string curStr, vector<string>& allret)
+	{
+		if (idx == digits.size())
+		{
+			if (curStr.empty()) return;
+			cout << curStr << endl;
+			allret.push_back(curStr);
+			return;
+		}
+		// 2 abc
+		// 3 def
+		// 取出当前位置的字符串
+		string cur = mp[digits[idx]];
+		// 字符串中的每一个字符都必须使用
+		for (char& e : cur)
+		{
+			// 每次循环都是单独+1,+e
+			dfs(digits, idx + 1, curStr + e, allret);
+		}
+	}
+	vector<string> letterCombinations(string digits) {
+		vector<string> ret;
+		if (digits.empty()) return ret;
+		dfs(digits, 0, "", ret);
+		return ret;
+	}
+};
+int main3(){
+	Solution sl;
+	sl.letterCombinations("23");
+
+	system("pause");
+	return 0;
+}
+
+#if 0
+
+int maisn(){
+#if 0
+	同时插入与扩容：效率非常低
+		因为：一边插入一边扩容，刚开始可能不明显，但是随着string中容纳的字符越来越多，边插入边扩容对性能的损耗特别大
+		解决方式：在插入之前如果能够预估到要插入多少个字符时，可以提前将空间给足.s.reserve(1000);
+#endif
+	// 测试 string 的扩容机制
+	string s;
+
+	// capacity *= 1.5;
+	int sz = s.capacity();
+	for (int i = 0; i < 1000; ++i){
+		s.push_back('a');
+		if (sz != s.capacity())
+		{
+			cout << "sz -> " << sz << endl;
+			sz = s.capacity();
+		}
+	}
+	system("pause");
+	return 0;
+}
+
+#endif
+
+
